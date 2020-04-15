@@ -129,7 +129,12 @@ module Lecture06 where
   Если да, то приведите пример Γ и T и постройте дерево вывода Γ ⊢ x x : T;
   если нет, то докажите это (напишите, почему)
 
-  *Решение*
+  Попробуем доказать что терм x x имеет тип T.
+  Согласно лемме об инверсии: Если Г ⊢ x x : T то сущетсвует некторый тип T', такой что Г ⊢ x : T -> T' и Г ⊢ x : T
+  В контексте Г у x может быть только одно связываение => T -> T' = T
+  Что невозможно, так как в данном случаее тип имеет бесконечный размер
+  Тип не может служить подвыражанием самого себя
+  Получили противоречие => такого контекста Г и типа T не существует
 -}
 -- </Задачи для самостоятельного решения>
 
@@ -137,7 +142,7 @@ module Lecture06 where
 
   - Дополнительные проверки синтаксиса.
   Теперь наши ошибки и опечатки с большей вероятностью выявятся в ходе проверок? до запуска,
-  возможно продолжительных, вычислений. Снова посмотрим на терм `plus false true`.
+  возможно продолжительных, вычислений. Снова посмотрим на терм `plus false true`.  
   Теперь этот терм нельзя считать корреткной программой. Вы можете убедиться, что он нетипизируем.
 
   - Безопасность (safety) или корректность (soundness): правильно типизированные термы «не ломаются».
@@ -326,7 +331,13 @@ module Lecture06 where
   Убедитесь, что selfApp работает. Приведите терм `selfApp id` в нормальную форму
   и запишите все шаги β-редукции ->β.
 
-  selfApp id = ... ->β ...
+  id = λx:∀X.X->X.x
+
+  selfApp = λx:∀X.X->X.x [∀X.X->X] x
+
+  selfApp id = (λx:∀X.X->X.x [∀Y.Y->Y] x) (id:∀Z.Z->Z) 
+    ->β (λx:(∀Y.Y->Y)->(∀Y.Y->Y).x x) (id:∀Z.Z->Z) 
+    ->β id id
 -}
 -- </Задачи для самостоятельного решения>
 
@@ -578,16 +589,16 @@ module Lecture06 where
 -}
 
 f :: [a] -> Int
-f = error "not implemented"
+f = length
 
 g :: (a -> b)->[a]->[b]
-g = error "not implemented"
+g = map
 
 q :: a -> a -> a
-q x y = error "not implemented"
+q x y = x
 
 p :: (a -> b) -> (b -> c) -> (a -> c)
-p f g = error "not implemented"
+p f g = \x -> g (f x)
 
 {-
   Крестики-нолики Чёрча.
@@ -624,7 +635,10 @@ createRow x y z = \case
   Third -> z
 
 createField :: Row -> Row -> Row -> Field
-createField x y z = error "not implemented"
+createField x y z = \case
+  First -> x
+  Second -> y
+  Third -> z
 
 -- Чтобы было с чего начинать проверять ваши функции
 emptyField :: Field
@@ -632,18 +646,56 @@ emptyField = createField emptyLine emptyLine emptyLine
   where
     emptyLine = createRow Empty Empty Empty
 
+-- Установка значения клетки в строке
 setCellInRow :: Row -> Index -> Value -> Row
-setCellInRow r i v = error "not implemented"
+setCellInRow row i value = \index -> if index == i then value else row index
+
+-- Установка занчения клетки в поле
+setCellInField :: Field -> Index -> Index -> Value -> Field
+setCellInField field i j value = \rowIdx -> \valIdx -> if i == rowIdx && j == valIdx then value else field rowIdx valIdx
 
 -- Возвращает новое игровое поле, если клетку можно занять.
 -- Возвращает ошибку, если место занято.
 setCell :: Field -> Index -> Index -> Value -> Either String Field
-setCell field i j v = error "not implemented"
+setCell field i j value = case (field i j) of
+  Empty -> Right (setCellInField field i j value)
+  other -> Left ("There is '" ++ (show (field i j)) ++ "' on " ++ (show i) ++ " " ++ (show j))
+
+possibleIndices :: [Index]
+possibleIndices = [First, Second, Third]
+
+fieldRowIndices :: [[(Index, Index)]]
+fieldRowIndices = [[(i, j) | j <- possibleIndices] | i <- possibleIndices]
+
+fieldColumnsIndices :: [[(Index, Index)]]
+fieldColumnsIndices = [[(i, j) | i <- possibleIndices] | j<- possibleIndices]
+
+fieldMainDiagonalIndices :: [[(Index, Index)]]
+fieldMainDiagonalIndices = [zip possibleIndices possibleIndices]
+
+fieldReverseDiagonalIndices :: [[(Index, Index)]]
+fieldReverseDiagonalIndices = [zip possibleIndices possibleIndices]
+
+fieldLinesIndices :: [[(Index, Index)]]
+fieldLinesIndices = fieldRowIndices ++ fieldColumnsIndices ++ fieldMainDiagonalIndices ++ fieldReverseDiagonalIndices
+
+getFieldLinesValue :: Field -> [[Value]]
+getFieldLinesValue field = map (map (\(i, j) -> field i j)) fieldLinesIndices
+
+fielsHasEmptyCell :: Field -> Bool
+fielsHasEmptyCell field = any (any (\value -> if value == Empty then True else False)) (getFieldLinesValue field)
+
+fielsHasWinLines :: Field -> Value -> Bool
+fielsHasWinLines field value = any (all (\val -> if val == value then True else False)) (getFieldLinesValue field)
 
 data GameState = InProgress | Draw | XsWon | OsWon deriving (Eq, Show)
 
 getGameState :: Field -> GameState
-getGameState field = error "not implemented"
+getGameState field
+  | fielsHasWinLines field Zero = OsWon
+  | fielsHasWinLines field Cross = XsWon
+  | fielsHasEmptyCell field = InProgress
+  | otherwise = Draw
 
 -- </Задачи для самостоятельного решения>
 
