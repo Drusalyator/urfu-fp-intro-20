@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-unused-imports #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Lecture07 where
 
 import Lecture07.Money
@@ -65,15 +66,34 @@ data Expr
   | Abs Expr
   deriving Eq
 
+showNumberOrExpr :: Expr -> String
+showNumberOrExpr token = case token of
+  (Number number) -> show number
+  _ -> "(" ++ show token ++ ")"  
+
+instance Show Expr where
+  show (Number number) = show number
+  show (Plus expr1 expr2) = showNumberOrExpr expr1 ++ " + " ++ showNumberOrExpr expr2
+  show (Minus expr1 expr2) = showNumberOrExpr expr1 ++ " - " ++ showNumberOrExpr expr2
+  show (Mult expr1 expr2) = showNumberOrExpr expr1 ++ " * " ++ showNumberOrExpr expr2
+  show (UnaryMinus expr) = "-" ++ showNumberOrExpr expr
+  show (Abs expr) = "|" ++ show expr ++ "|"
+
 {-
   Реализуйте instance Semigroup для вектора:
 -}
 newtype Vec a = Vec { unVec :: [a] } deriving (Eq, Show)
 
+instance Semigroup (Vec Integer) where
+  (Vec x1) <> (Vec x2) = Vec (map (\(x1, x2) -> x1 + x2) (zip x1 x2))
+
 {-
   Реализуйте instance Semigroup для типа для логгирования:
 -}
 newtype LogEntry = LogEntry { unLogEntry :: String } deriving (Eq, Show)
+
+instance Semigroup LogEntry where
+  (LogEntry x1) <> (LogEntry x2) = LogEntry (x1 ++ x2)
 
 {-
   В `src/Lecture07/Money.hs` определены:
@@ -84,20 +104,38 @@ newtype LogEntry = LogEntry { unLogEntry :: String } deriving (Eq, Show)
   Реализуйте инстансы Semigroup для Money a.
 -}
 
+instance Semigroup (Money RUB) where
+  x1 <> x2 = mkRubbles ((getMoney x1) + (getMoney x2))
+
+instance Semigroup (Money USD) where
+  x1 <> x2 = mkDollars ((getMoney x1) + (getMoney x2))
+
 {-
   Реализуйте инстанс Functor для ExactlyOne
 -}
 data ExactlyOne a = ExactlyOne a deriving (Eq, Show)
+
+instance Functor ExactlyOne where
+  fmap f (ExactlyOne x) = ExactlyOne (f x)
 
 {-
   Реализуйте инстанс Functor для `Maybe a`
 -}
 data Maybe' a = Just' a | Nothing' deriving (Eq, Show)
 
+instance Functor Maybe' where
+  fmap f (Just' x) = Just' (f x)
+  fmap _ Nothing' = Nothing'
+
 {-
   Реализуйте инстанс Functor для `List a`
 -}
 data List a = Nil | Cons a (List a) deriving (Eq, Show)
+
+instance Functor List where 
+  fmap f (Cons x1 x2) = Cons (f x1) (fmap f x2)
+  fmap _ Nil = Nil
+  
 
 {-
   `FileTree a` — тип для представления дерева файловой системы.
@@ -146,7 +184,9 @@ latestModified = getMax . foldMap (\FileInfo{..} -> Max modified)
 -}
 
 instance Foldable FileTree where
-  foldMap = undefined
+  foldMap f Empty = mempty
+  foldMap f (File _ file) = f file
+  foldMap f (Dir _ dir) = mconcat (map (foldMap f) dir)
 
 {-
   В этом задании вам необходимо придумать и написать иерархию исключений
@@ -163,5 +203,21 @@ instance Foldable FileTree where
 
   Реализовывать инстансы не нужно.
 -}
+
+data JSON = JSON String deriving (Eq, Show)
+data Severity = Debug | Info | Error | Warn deriving (Eq, Show)
+
+class Exception exception where
+  message :: exception -> String
+
+class Exception exception => ApiException exception where
+  jsonMessage :: exception -> JSON
+  severity :: exception -> Severity
+
+class Exception exception => DatabaseException exception where
+  databaseMessage :: exception -> String
+
+class Exception exception => DomeinException exception context where
+  context :: exception -> context
 
 -- </Задачи для самостоятельного решения>
