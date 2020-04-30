@@ -41,18 +41,20 @@ import qualified Data.IntMap as Map
 data Stack a = Stack [a] deriving (Eq, Show)
 
 createStack :: Stack a
-createStack = error "not implemented"
+createStack = Stack []
 
 -- Обратите внимание, что все структуры данных неизменяемые (immutable). Значит, если операция
 -- предполагает изменение структуры, то она просто должна возвращать новую уже изменённую версию.
 push :: Stack a -> a -> Stack a
-push stack x = error "not implemented"
+push (Stack xs) x = Stack (x:xs)
 
 pop :: Stack a -> Maybe (Stack a)
-pop stack = error "not implemented"
+pop (Stack []) = Nothing
+pop (Stack (_:xs)) = Just (Stack xs)
 
 peek :: Stack a -> Maybe a
-peek stack = error "not implemented"
+peek (Stack []) = Nothing
+peek (Stack (x:_)) = Just x
 
 -- </Задачи для самостоятельного решения>
 
@@ -170,17 +172,20 @@ dequeue' (q:qs) = (q, qs)             -- возвращаем (элемент, �
 data Queue a = Queue [a] [a] deriving (Eq, Show)
 
 createQueue :: Queue a
-createQueue = error "not implemented"
+createQueue = Queue [] []
 
 enqueue :: Queue a -> a -> Queue a
-enqueue queue x = error "not implemented"
+enqueue (Queue leftStask rightStack) x = Queue (x:leftStask) rightStack
 
 -- если очередь пустая возвращает ошибку
 dequeue :: Queue a -> (a, Queue a)
-dequeue queue = error "not implemented"
+dequeue (Queue [] []) = error "Queue is empty"
+dequeue (Queue leftStask []) = dequeue (Queue [] (reverse leftStask))
+dequeue (Queue leftStask (x:xs)) = (x, Queue leftStask xs) 
 
 isEmpty :: Queue a -> Bool
-isEmpty queue = error "not implemented"
+isEmpty (Queue [] []) = True
+isEmpty (Queue _ _) = False
 
 -- </Задачи для самостоятельного решения>
 
@@ -376,16 +381,85 @@ emptySet = Set.intersection evenSet oddSet
   https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/glasgow_exts.html?highlight=ambiguous#extension-AllowAmbiguousTypes
 -}
 
--- Названия методов можно менять
 class IntArray a where
-  fromList :: [(Int, Int)] -> a    -- создать из списка пар [(index, value)]
-  toList :: a -> [(Int, Int)]      -- преобразовать в список пар [(index, value)]
-  update :: a -> Int -> Int -> a   -- обновить элемент по индексу
-  (#) :: a -> Int -> Int           -- получить элемент по индексу
+  -- Получение элемента по индексу
+  get :: a -> Int -> Int
+
+  -- Установка элемента по индексу
+  update :: a -> Int -> Int -> a
+
+  -- Создание массива из нулей
+  createZeroesIntArray :: Int -> a
+
+  -- Увеличение значения элемента по индексу на единицу
+  incrementElem :: a -> Int -> a
+  incrementElem intArray index = update intArray index ((get intArray index) + 1)
+
+
+-- Реализация для [Int]
+
+getListElem :: [Int] -> Int -> Int
+getListElem list index = list !! index
+
+updateListElem :: [Int] -> Int -> Int -> [Int]
+updateListElem list index value = (take index list) ++ [value] ++ (drop (index + 1) list)
+
+createZeroesList :: Int -> [Int]
+createZeroesList count = replicate count 0
+
+incrementListAt :: [Int] -> Int -> [Int]
+incrementListAt list index = updateListElem list index ((getListElem list index) + 1)
+
+instance IntArray [Int] where
+  get = getListElem
+  update = updateListElem
+  createZeroesIntArray = createZeroesList
+
+
+--Реализация для (Map.IntMap Int)
+
+getMapElem :: (Map.IntMap Int) -> Int -> Int
+getMapElem map index = map Map.! index
+
+updateMapElem :: (Map.IntMap Int) -> Int -> Int -> (Map.IntMap Int)
+updateMapElem map index value = Map.insert index value map
+
+createZeroesMap :: Int -> (Map.IntMap Int)
+createZeroesMap count = Map.fromList [(index, 0) | index <- [0..count]]
+
+instance IntArray (Map.IntMap Int) where
+  get = getMapElem
+  update = updateMapElem
+  createZeroesIntArray = createZeroesMap
+
+
+--Реализация для (Map.IntMap Int)
+
+getArrayElem :: (Array Int Int) -> Int -> Int
+getArrayElem array index = array ! index
+
+updateArrayElem :: (Array Int Int) -> Int -> Int -> (Array Int Int)
+updateArrayElem array index value = array // [(index, value)]
+
+createZeroesArray :: Int -> (Array Int Int)
+createZeroesArray count = array (0, count) [(i, 0) | i <- [0..count]]
+
+instance IntArray (Array Int Int) where
+  get = getArrayElem
+  update = updateArrayElem
+  createZeroesIntArray = createZeroesArray  
+
+
+-- Общие методы
+
+-- Получение заполненного количеством цифр массива
+getCountsArray :: forall a. IntArray a => [Int] -> a
+getCountsArray list = foldl (\zeroesArray -> \index ->  incrementElem zeroesArray index) (createZeroesIntArray (maximum list + 1) :: a) list
 
 -- Сортирует массив целых неотрицательных чисел по возрастанию
 countingSort :: forall a. IntArray a => [Int] -> [Int]
-countingSort = error "not implemented"
+countingSort [] = []
+countingSort list = foldl (\resultList index -> resultList ++ (replicate (get (getCountsArray list :: a) index) index)) [] [0..(maximum list)]
 
 {-
   Tак можно запустить функцию сортировки с использованием конкретной реализацией массива:
@@ -398,7 +472,11 @@ countingSort = error "not implemented"
 -}
 
 sorted :: [Int]
-sorted = countingSort @[Int] [2,2,2,3,3,3,1,1,1]
+sorted = countingSort @(Map.IntMap Int) [2,2,2,3,3,3,1,1,1]
+
+
+main :: IO ()
+main = putStrLn $ show (sorted)
 
 -- </Задачи для самостоятельного решения>
 
